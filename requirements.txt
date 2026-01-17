@@ -3,5 +3,5 @@ uvicorn[standard]
 torch
 diffusers
 transformers
-xformers
 python-multipart
+accelerate

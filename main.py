@@ -3,44 +3,37 @@ from fastapi.responses import FileResponse
 import torch
 from diffusers import StableDiffusionPipeline
 
-app = FastAPI(title="Stable Diffusion API")
+app = FastAPI(title="Stable Diffusion API CPU")
 
-# Détecter GPU si disponible
 device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.float16 if device == "cuda" else torch.float32
-
+dtype = torch.float32  # CPU ne supporte pas float16
 print(f"Device utilisé: {device}")
 
-# Charger le modèle
+# Charger un modèle léger + low_cpu_mem_usage
 pipe = StableDiffusionPipeline.from_pretrained(
-    "runwayml/stable-diffusion-v1-5",
+    "stabilityai/stable-diffusion-2-base",  # modèle plus léger
     torch_dtype=dtype,
-    safety_checker=None
+    safety_checker=None,
+    low_cpu_mem_usage=True
 ).to(device)
 
-# Optimisations pour VRAM / CPU faible
-try:
-    pipe.enable_xformers_memory_efficient_attention()
-except:
-    pass
+# Optimisations pour CPU
 pipe.enable_attention_slicing()
 
 @app.post("/generate")
 async def generate(prompt: str = Form(...)):
-    """Génère une image à partir d'un prompt texte"""
     try:
         with torch.inference_mode():
             image = pipe(
                 prompt,
-                guidance_scale=7.5,
-                num_inference_steps=15,   # CPU friendly
-                height=512,
-                width=512
+                guidance_scale=5.0,
+                num_inference_steps=10,  # peu de steps = moins de RAM
+                height=256,
+                width=256
             ).images[0]
 
         filename = "generated.png"
         image.save(filename)
         return FileResponse(filename)
-
     except Exception as e:
         return {"error": str(e)}
